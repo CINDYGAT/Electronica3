@@ -1,0 +1,60 @@
+//predefinidas
+#include <stdint.h>
+#include <stdbool.h>
+
+//agregadas microcontrolador
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/tm4c123gh6pm.h"
+
+//librerias extras
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+
+// Las variables se declaran abajo de las librerias
+
+int valor = 0;
+
+int main(void)
+{
+    SysCtlClockSet(SYSCTL_OSC_MAIN |SYSCTL_USE_PLL | SYSCTL_XTAL_16MHZ | SYSCTL_SYSDIV_2_5); //DEFINIR EL CLK
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);  //DEFINIR EL PUERTO F
+
+    GPIO_PORTF_LOCK_R = GPIO_LOCK_KEY;
+    GPIO_PORTF_CR_R = 0x0f;
+    GPIOPinTypeGPIOOutput(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3); //DEFINIR LOS PINES DEL PUERTO F DE SALIDA
+    GPIOPinTypeGPIOInput(GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4 );
+    GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_0|GPIO_PIN_4, GPIO_STRENGTH_2MA,  GPIO_PIN_TYPE_STD_WPU);
+
+
+  while(1){
+
+        valor = GPIOPinRead( GPIO_PORTF_BASE, GPIO_PIN_0 | GPIO_PIN_4 );
+
+        if (valor == 17){
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,0 );
+        }
+        else if(valor == 16){
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,2 );
+        }
+        else if(valor == 1){
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,4);
+        }
+        else if(valor == 0){
+            GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,8);
+        }
+
+
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,2 );
+                //SysCtlDelay(80000000/3);
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,4 ); //azul
+                //SysCtlDelay(80000000/3);
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,8);
+                //SysCtlDelay(80000000/3);
+        //GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3,12 );
+                //SysCtlDelay(80000000/3);
+
+  }
+
+}

@@ -1,0 +1,56 @@
+//predefinidas
+#include <stdint.h>
+#include <stdbool.h>
+
+//agregadas microcontrolador
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/tm4c123gh6pm.h"
+
+//librerias extras
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+
+// Las variables se declaran abajo de las librerias
+
+int valor = 0;
+int ultimo=0;
+
+int main(void)
+{
+    SysCtlClockSet(SYSCTL_OSC_MAIN |SYSCTL_USE_PLL | SYSCTL_XTAL_16MHZ | SYSCTL_SYSDIV_2_5); //DEFINIR EL CLK
+    //comando configura el reloj del sistema a 80 MHz usando el oscilador principal de 16 MHz y el PLL.
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);  //habilitar el puerto B
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+    //habilita el reloj para el Puerto F
+
+    //GPIO_PORTF_LOCK_R = GPIO_LOCK_KEY; //desbloquear el puerto F
+    //GPIO_PORTF_CR_R = 0x0f; //desbloquear la escritura en el puerto F
+
+    GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 ); //DEFINIR LOS PINES DE SALIDA PB0  a PB7
+    GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_0 ); //DEFINIR PINES DE ENTRADA DIGITAL
+    GPIOPadConfigSet(GPIO_PORTF_BASE, GPIO_PIN_0|GPIO_PIN_4, GPIO_STRENGTH_2MA,  GPIO_PIN_TYPE_STD_WPU);
+
+
+while(1) {
+
+    valor = GPIOPinRead( GPIO_PORTA_BASE, GPIO_PIN_0 );
+
+    if(valor==1){
+        // Encender todos los LEDs en cascada
+        for (int i = 0; i < 7; i++) {
+            GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6, 1 << i);
+            SysCtlDelay(80000000/3);
+        }
+
+        // Guardar el último LED encendido
+        ultimo = 1 << 6;
+    }
+
+    // Mantener el último LED encendido hasta que se presione el botón nuevamente
+    while (GPIOPinRead( GPIO_PORTA_BASE, GPIO_PIN_0 ) == 0) {
+        GPIOPinWrite(GPIO_PORTB_BASE, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6, ultimo);
+    }
+}
+}

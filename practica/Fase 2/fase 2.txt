@@ -1,0 +1,159 @@
+//PC4 -- PB4
+//PC5 -- PB5
+//PC6 -- PE5
+//PC7 -- PD0
+//PD6 -- PE4
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/tm4c123gh6pm.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pwm.h"
+#include "driverlib/pin_map.h"
+
+#define PWM_FREQUENCY 55
+uint32_t Load;
+uint32_t PWMClock;
+uint8_t Adjust1;
+uint8_t Adjust2;
+uint8_t Adjust3;
+uint8_t Adjust4;
+uint8_t Adjust5;
+
+
+int main(void)
+{
+
+    Adjust1 = 28; // Inicializamos el valor de ajuste (posición inicial del servo)
+    Adjust2 = 28;
+    Adjust3 = 28;
+    Adjust4 = 28;
+    Adjust5 = 28;
+
+    SysCtlClockSet(SYSCTL_OSC_MAIN | SYSCTL_USE_PLL | SYSCTL_XTAL_16MHZ | SYSCTL_SYSDIV_2_5); // Configura el reloj a 80 MHz
+
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);  // Habilita el puerto B
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);  // Habilita el puerto E
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);  // Habilita el puerto D
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);  // Habilita el puerto C
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);   // Habilitar el módulo PWM0
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM1);   // Habilitar el módulo PWM1
+
+    SysCtlPWMClockSet(SYSCTL_PWMDIV_64); // divisor del reloj para el PWM
+    GPIOPinTypePWM(GPIO_PORTB_BASE, GPIO_PIN_4 | GPIO_PIN_5); // Configurar PB4 Y PB5 como salida
+    GPIOPinTypePWM(GPIO_PORTE_BASE, GPIO_PIN_4 | GPIO_PIN_5); // Configurar PE4 Y PE5 como salida
+    GPIOPinTypePWM(GPIO_PORTD_BASE, GPIO_PIN_0); // Configurar PD0 como salida
+    GPIOPinConfigure(GPIO_PB4_M0PWM2); // Configurar PB4 M0PWM2
+    GPIOPinConfigure(GPIO_PB5_M0PWM3); // Configurar PB5 M0PWM3
+    GPIOPinConfigure(GPIO_PE4_M1PWM2); // Configurar PE4 M1PWM2
+    GPIOPinConfigure(GPIO_PE5_M1PWM3); // Configurar PE5 M1PWM3
+    GPIOPinConfigure(GPIO_PD0_M1PWM0); // Configurar PD0 M1PWM0
+
+
+    //GPIOPinTypeGPIOOutput(GPIO_PORTB_BASE, GPIO_PIN_1); // Define PB1 como salida
+    //GPIOPinTypeGPIOOutput(GPIO_PORTE_BASE, GPIO_PIN_4); // Define PE4 como salida
+    GPIOPinTypeGPIOInput(GPIO_PORTD_BASE, GPIO_PIN_6);  // Define PD6 como entrada
+    GPIOPinTypeGPIOInput(GPIO_PORTC_BASE, GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7);  // Define PC4 5 6 7 como entrada
+    GPIOPadConfigSet(GPIO_PORTD_BASE, GPIO_PIN_6, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU); // Configuración pull-up en PD6
+    GPIOPadConfigSet(GPIO_PORTC_BASE,GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU); // Configuración pull-up en PC
+
+    // Calcular el valor de "Load" para el periodo del PWM
+    PWMClock = SysCtlClockGet() / 64;
+    Load = (PWMClock / PWM_FREQUENCY) - 1;
+
+    //Configurar PB4 y PB5
+    PWMGenConfigure(PWM0_BASE, PWM_GEN_1, PWM_GEN_MODE_DOWN); //Generador 1 base pwm0 PB4 PB5
+    PWMGenPeriodSet(PWM0_BASE, PWM_GEN_1, Load); // Generador 1, Base PWM0 PB4 PB5
+    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_2, Adjust1 * Load / 1000); //PB4
+    PWMPulseWidthSet(PWM0_BASE, PWM_OUT_3 , Adjust2 * Load / 1000); //PB5
+    PWMOutputState(PWM0_BASE, PWM_OUT_2_BIT, true); //PB4
+    PWMOutputState(PWM0_BASE,PWM_OUT_3_BIT, true); //PB5
+    PWMGenEnable(PWM0_BASE, PWM_GEN_1); //Generador 1, Base PWM0
+
+    //Configurar PE4 PE5
+    PWMGenConfigure(PWM1_BASE, PWM_GEN_1, PWM_GEN_MODE_DOWN); //Generador 1 base PWM1
+    PWMGenPeriodSet(PWM1_BASE, PWM_GEN_1, Load);
+    PWMPulseWidthSet(PWM1_BASE, PWM_OUT_2, Adjust3 * Load / 1000); //PE4
+    PWMPulseWidthSet(PWM1_BASE, PWM_OUT_3 , Adjust4 * Load / 1000); //PE5
+    PWMOutputState(PWM1_BASE, PWM_OUT_2_BIT, true); //PE4
+    PWMOutputState(PWM1_BASE, PWM_OUT_3_BIT, true); //PE5
+    PWMGenEnable(PWM1_BASE, PWM_GEN_1); //Generador 1, Base PWM1
+
+    PWMGenConfigure(PWM1_BASE, PWM_GEN_0, PWM_GEN_MODE_DOWN);
+    PWMGenPeriodSet(PWM1_BASE, PWM_GEN_0, Load);
+    PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, Adjust5 * Load / 1000);                                                                                                  ////Establecer el ancho de pulso
+    PWMOutputState(PWM1_BASE, PWM_OUT_0_BIT, true);
+    PWMGenEnable(PWM1_BASE, PWM_GEN_0);
+
+
+    while(1)
+    {
+        int valor_PC4 = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_4);
+        int valor_PC5 = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_5);
+        int valor_PC6 = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_6);
+        int valor_PC7 = GPIOPinRead(GPIO_PORTC_BASE, GPIO_PIN_7);
+        int valor_PD6 = GPIOPinRead(GPIO_PORTD_BASE, GPIO_PIN_6);
+
+        // Motor 1 (PB4) controlado por PC4
+                if (valor_PC4 == 0)
+                {
+                    Adjust1 = 140; // Mover a 180 grados
+                }
+                else
+                {
+                    Adjust1 = 28; // Regresar a 90 grados
+                }
+                PWMPulseWidthSet(PWM0_BASE, PWM_OUT_2, Adjust1 * Load / 1000);
+
+                // Motor 2 (PB5) controlado por PC5
+                if (valor_PC5 == 0)
+                {
+                    Adjust2 = 140;
+                }
+                else
+                {
+                    Adjust2 = 28;
+                }
+                PWMPulseWidthSet(PWM0_BASE, PWM_OUT_3, Adjust2 * Load / 1000);
+
+                // Motor 3 (PE5) controlado por PC6
+                if (valor_PC6 == 0)
+                {
+                    Adjust3 = 140;
+                }
+                else
+                {
+                    Adjust3 = 28;
+                }
+                PWMPulseWidthSet(PWM1_BASE, PWM_OUT_3, Adjust3 * Load / 1000);
+
+                // Motor 4 (PE4) controlado por PC7
+                if (valor_PC7 == 0)
+                {
+                    Adjust4 = 140;
+                }
+                else
+                {
+                    Adjust4 = 28;
+                }
+                PWMPulseWidthSet(PWM1_BASE, PWM_OUT_2, Adjust4 * Load / 1000);
+
+                // Motor 5 (PD0) controlado por PD6
+                if (valor_PD6 == 0)
+                {
+                    Adjust5 = 140;
+                }
+                else
+                {
+                    Adjust5 = 28;
+                }
+                PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, Adjust5 * Load / 1000);
+
+                SysCtlDelay(10000); // Pequeño retardo para evitar múltiples lecturas rápidas
+            }
+
+}
+
