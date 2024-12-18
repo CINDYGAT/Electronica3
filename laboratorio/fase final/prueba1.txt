@@ -1,0 +1,182 @@
+//PD0 configurado como ADC
+//PB4 -- Motor 1 -- lectura activacion PWM:
+//PB5 -- Motor 2 -- lectura activacion PWM:
+//PE4 -- Motor 3 -- lectura activacion PWM:
+//PE5 -- Motor 4 -- lectura activacion PWM:
+//PC4 -- Motor 5 -- lectura activacion PWM:
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "inc/tm4c123gh6pm.h"
+#include "driverlib/sysctl.h"
+#include "driverlib/gpio.h"
+#include "driverlib/pwm.h"
+#include "driverlib/pin_map.h"
+#include "driverlib/adc.h"
+
+//variables
+#define PWM_FREQUENCY 55
+#define NUM_MEDICIONES 50 // numero de mediciones que vamos a tomar
+uint32_t Load;
+uint32_t PWMClock;
+uint8_t Adjust1;
+uint8_t Adjust2;
+uint8_t Adjust3;
+uint8_t Adjust4;
+uint8_t Adjust5;
+
+uint32_t muestra[1];
+uint32_t mediciones[NUM_MEDICIONES];  // Arreglo para almacenar las mediciones
+uint32_t suma = 0;
+uint32_t promedio = 0;
+bool guardarDatos = false;
+int i;
+
+int main(void)
+{
+    // CODIGO ADC
+
+    // RELOJ GENERAL
+    SysCtlClockSet(SYSCTL_SYSDIV_2_5 | SYSCTL_USE_PLL | SYSCTL_OSC_MAIN | SYSCTL_XTAL_16MHZ);
+
+    // PERIFERICO ADC
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_ADC0);
+
+    // PIN ADC PD0
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOD);
+    GPIOPinTypeADC(GPIO_PORTD_BASE, GPIO_PIN_0);
+
+    // Configura el disparo que habilitará el ADC y su Prioridad
+    ADCSequenceConfigure(ADC0_BASE, 1, ADC_TRIGGER_PROCESSOR, 0);
+
+    // Secuencia de conversión para ADC0, usando el canal CH7 (PD0)
+    ADCSequenceStepConfigure(ADC0_BASE, 1, 0, ADC_CTL_CH7 | ADC_CTL_IE | ADC_CTL_END);
+
+    // Habilita la toma de muestras
+    ADCSequenceEnable(ADC0_BASE, 1);
+
+
+
+    // PWM CODIGO
+    Adjust1 = 28; // (posición inicial del servo)
+    Adjust2 = 28;
+    Adjust3 = 28;
+    Adjust4 = 28;
+    Adjust5 = 28;
+
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOB);  // Habilita el puerto B
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOE);  // Habilita el puerto E
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOC);  // Habilita el puerto C
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM0);   // Habilitar el módulo PWM0
+        SysCtlPeripheralEnable(SYSCTL_PERIPH_PWM1);   // Habilitar el módulo PWM1
+
+        SysCtlPWMClockSet(SYSCTL_PWMDIV_64); // divisor del reloj para el PWM
+        GPIOPinTypePWM(GPIO_PORTB_BASE, GPIO_PIN_4 | GPIO_PIN_5); // Configurar PB4 Y PB5 como salida
+        GPIOPinTypePWM(GPIO_PORTE_BASE, GPIO_PIN_4 | GPIO_PIN_5); // Configurar PE4 Y PE5 como salida
+        GPIOPinTypePWM(GPIO_PORTC_BASE, GPIO_PIN_4); // Configurar PC4
+        GPIOPinConfigure(GPIO_PB4_M0PWM2); // Configurar PB4 M0PWM2
+        GPIOPinConfigure(GPIO_PB5_M0PWM3); // Configurar PB5 M0PWM3
+        GPIOPinConfigure(GPIO_PE4_M1PWM2); // Configurar PE4 M1PWM2
+        GPIOPinConfigure(GPIO_PE5_M1PWM3); // Configurar PE5 M1PWM3
+        GPIOPinConfigure(GPIO_PC4_M0PWM6);
+
+
+           PWMClock = SysCtlClockGet() / 64;
+           Load = (PWMClock / PWM_FREQUENCY) - 1;
+
+           //Configurar PB4 y PB5
+           PWMGenConfigure(PWM0_BASE, PWM_GEN_1, PWM_GEN_MODE_DOWN); //Generador 1 base pwm0 PB4 PB5
+           PWMGenPeriodSet(PWM0_BASE, PWM_GEN_1, Load); // Generador 1, Base PWM0 PB4 PB5
+           PWMPulseWidthSet(PWM0_BASE, PWM_OUT_2, Adjust1 * Load / 1000); //PB4
+           PWMPulseWidthSet(PWM0_BASE, PWM_OUT_3 , Adjust2 * Load / 1000); //PB5
+           PWMOutputState(PWM0_BASE, PWM_OUT_2_BIT, true); //PB4
+           PWMOutputState(PWM0_BASE,PWM_OUT_3_BIT, true); //PB5
+           PWMGenEnable(PWM0_BASE, PWM_GEN_1); //Generador 1, Base PWM0
+
+           //Configurar PE4 PE5
+           PWMGenConfigure(PWM1_BASE, PWM_GEN_1, PWM_GEN_MODE_DOWN); //Generador 1 base PWM1
+           PWMGenPeriodSet(PWM1_BASE, PWM_GEN_1, Load);
+           PWMPulseWidthSet(PWM1_BASE, PWM_OUT_2, Adjust3 * Load / 1000); //PE4
+           PWMPulseWidthSet(PWM1_BASE, PWM_OUT_3 , Adjust4 * Load / 1000); //PE5
+           PWMOutputState(PWM1_BASE, PWM_OUT_2_BIT, true); //PE4
+           PWMOutputState(PWM1_BASE, PWM_OUT_3_BIT, true); //PE5
+           PWMGenEnable(PWM1_BASE, PWM_GEN_1); //Generador 1, Base PWM1
+
+           PWMGenConfigure(PWM1_BASE, PWM_GEN_0, PWM_GEN_MODE_DOWN);
+           PWMGenPeriodSet(PWM1_BASE, PWM_GEN_0, Load);
+           PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, Adjust5 * Load / 1000);
+           PWMOutputState(PWM1_BASE, PWM_OUT_0_BIT, true);
+           PWMGenEnable(PWM1_BASE, PWM_GEN_0);
+
+           //configurando el boton PA2 para guardar datos
+           SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOA);
+           GPIOPinTypeGPIOInput(GPIO_PORTA_BASE, GPIO_PIN_2);
+           GPIOPadConfigSet(GPIO_PORTA_BASE, GPIO_PIN_2, GPIO_STRENGTH_2MA, GPIO_PIN_TYPE_STD_WPU);
+
+    while (1)
+    {
+        // Limpia las interrupciones para poder obtener una nueva muestra
+        ADCIntClear(ADC0_BASE, 1);
+
+        // Dispara la secuencia para obtener una muestra
+        ADCProcessorTrigger(ADC0_BASE, 1);
+
+        // Espera a que se complete la conversión
+        while (!ADCIntStatus(ADC0_BASE, 1, false)) {}
+
+        // Obtiene la muestra
+        ADCSequenceDataGet(ADC0_BASE, 1, muestra);
+
+        // Esta es la parte del guardado de datos
+
+          if (GPIOPinRead(GPIO_PORTA_BASE, GPIO_PIN_2) == 0) { //se apacha el boton A2
+               guardarDatos = true;
+          }
+
+          if (guardarDatos) {
+              suma = 0;
+              for (i = 0; i < NUM_MEDICIONES; i++) {
+                    mediciones[i] = muestra[0];
+                    suma += mediciones[i];
+                    SysCtlDelay(SysCtlClockGet() / 3);
+           }
+           promedio = suma / NUM_MEDICIONES;
+
+            // Determinar qué dedo se está moviendo, ingreso manual de datos
+            if (promedio >= 911 && promedio <= 1003) { //dedo menique
+
+                Adjust1 = 140;
+            } else if (promedio >= 511 && promedio <= 600) { //dedo anular
+
+                Adjust2 = 140;
+            } else if (promedio >= 715 && promedio <= 754) { //dedo medio
+
+                Adjust3 = 140;
+            } else if (promedio >= 709 && promedio <= 799) { //dedo indice
+
+                Adjust4 = 140;
+            } else if (promedio >= 1105 && promedio <= 1419) { //dedo gordo....cambiar datos
+
+                Adjust5 = 140;
+            } else {
+
+                Adjust1 = Adjust2 = Adjust3 = Adjust4 = Adjust5 = 140; //cierra toda la mano
+            }
+
+
+            PWMPulseWidthSet(PWM0_BASE, PWM_OUT_2, Adjust1 * Load / 1000);
+            PWMPulseWidthSet(PWM0_BASE, PWM_OUT_3, Adjust2 * Load / 1000);
+            PWMPulseWidthSet(PWM1_BASE, PWM_OUT_2, Adjust3 * Load / 1000);
+            PWMPulseWidthSet(PWM1_BASE, PWM_OUT_3, Adjust4 * Load / 1000);
+            PWMPulseWidthSet(PWM1_BASE, PWM_OUT_0, Adjust5 * Load / 1000);
+
+            suma = 0;
+            guardarDatos = false;
+        }
+
+        SysCtlDelay(10000);
+
+            }
+}

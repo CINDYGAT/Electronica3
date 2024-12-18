@@ -1,0 +1,100 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+
+
+entity Contador is
+
+	Port (
+		clk: in STD_LOGIC;
+		salida: out STD_LOGIC_VECTOR( 7 downto 0);
+		seg: out STD_LOGIC_VECTOR ( 2 downto 0)	);	
+		
+end Contador;
+
+
+
+architecture Behavioral of Contador is
+
+Signal numero: integer range 0 to 9;
+signal contador: integer range 0 to 12000000;
+signal unidades, decenas, centenas: integer range 0 to 9;
+signal mul: integer range 0 to 2000:=0;
+signal bandera: integer range 0 to 2 := 0; 
+
+begin
+
+	process(clk)
+
+	begin
+	
+		if rising_edge (clk) then
+			contador <= contador +1;
+			if	 contador = 12000000 then
+				unidades <= unidades +1;
+				contador <= 0;
+				if unidades = 9 then
+				decenas <= decenas +1;
+				unidades <= 0;
+				if decenas = 9 then
+				centenas <= centenas +1;
+				decenas <= 0;
+				if centenas=9 then
+					centenas <=0;
+				end if;
+				end if;
+				end if;
+			end if;
+				
+			if (mul = 	2000) then
+			mul <= 0;
+			bandera <= bandera + 1;  
+			if bandera = 2 then
+                    bandera <= 0;  -- Reiniciar el ciclo
+                end if;
+			else
+                mul <= mul + 1;
+         end if;
+			case bandera is
+                when 0 =>  -- Mostrar unidades
+                    numero <= unidades;
+                    seg <= "110";  -- Activa el display de unidades
+                when 1 =>  -- Mostrar decenas
+                    numero <= decenas;
+                    seg <= "101";  -- Activa el display de decenas
+                when 2 =>  -- Mostrar centenas
+                    numero <= centenas;
+                    seg <= "011";  -- Activa el display de centenas
+                when others =>
+                    numero <= unidades;
+                    seg <= "110";  --  mostrar unidades
+            end case;
+
+		
+		case numero is
+									---hgfedcba
+			when 0 => salida <= "11000000";
+			when 1 => salida <= "11111001";
+			when 2 => salida <= "10100100";
+			when 3 => salida <= "10110000";
+			when 4 => salida <= "10011001";
+			when 5 => salida <= "10010010";
+			when 6 => salida <= "10000010";
+			when 7 => salida <= "11111000";
+			when 8 => salida <= "10000000";
+			when 9 => salida <= "10011000";
+			when others => salida <="11111111";
+		end case;
+		
+		
+	end if;	
+		
+			
+	end process;
+
+
+	
+
+end Behavioral;
+end Behavioral;
+1

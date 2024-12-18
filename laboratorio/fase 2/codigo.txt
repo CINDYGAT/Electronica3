@@ -1,0 +1,272 @@
+--Este codigo simula los semaforos de entrada y salida de los carros. Tanto para ma;ana como para noche
+--Se intento agregar el semaforo de la salida de la manana para los peatones, aun no se ha implementado apra la entrada y en la tarde. 
+-- Falta agregar buzzer, display 
+-- El unico error es que el tiempo en rojo de los peatones y el tiempo en rojo de los carros es el mismo, 20 s
+-- para manana dip switch 8 y para la tarde dip switch 7
+-- led de entrada D8 verde, D7 amarillo, D6 rojo CARROS
+-- led de salida D5 verde, D4 amarillo, D3 rojo CARROS
+-- led de salida peatones D2 verde, D1 rojo
+
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
+
+entity Semaforo is
+    Port(
+        Clk: in std_logic;
+        Selector_manana, Selector_tarde: in std_logic;
+        Verde_carros_entrada, Amarillo_carros_entrada, Rojo_carros_entrada: out std_logic;
+        Verde_carros_salida, Amarillo_carros_salida, Rojo_carros_salida: out std_logic;
+		  Verde_peatones_salida, Rojo_peatones_salida: out std_logic
+    );
+end Semaforo;
+
+architecture Behavioral of Semaforo is
+
+    -- Definir los estados del semáforo
+    type FSM is (EstadoVerde_carros_entrada, EstadoAmarillo_carros_entrada, EstadoRojo_carros_entrada);
+    type FSM_salida is (EstadoVerde_carros_salida, EstadoAmarillo_carros_salida, EstadoRojo_carros_salida);
+	 type FSM_peatones is (EstadoVerde_peatones_salida, EstadoRojo_peatones_salida);
+    
+    
+    -- Señales para almacenar el estado actual del semáforo
+    signal Estado_Semaforo_Entrada_Carros: FSM := EstadoVerde_carros_entrada;  -- Inicializamos en EstadoVerde
+    signal Estado_Semaforo_Salida_Carros: FSM_salida := EstadoVerde_carros_salida;  -- Inicializamos en EstadoVerde
+	 signal Estado_Semaforo_Peatones_Salida: FSM_peatones := EstadoRojo_peatones_salida; -- Inicializamos peatones en rojo
+    
+    -- Contadores para medir los tiempos en cada estado
+    signal Conteo_salida: integer range 0 to 240000000 := 0;  -- Contador con un rango apropiado Salida
+    signal Conteo_entrada: integer range 0 to 240000000 := 0;  -- Contador con un rango apropiado Entrada
+    signal Conteo_peatones: integer range 0 to 240000000 := 0;  -- Contador para peatones salida
+	 
+	  -- Señal para indicar si el semáforo de salida de carros está en rojo
+    signal Salida_Carros_Rojo: std_logic := '0';
+	 
+begin
+
+    -- Proceso para controlar el semáforo
+    process(Clk)
+    begin
+        if rising_edge(Clk) then
+            -- Si ambos switches están en la posición incorrecta, desactivar semáforos
+            if (Selector_manana = '1' and Selector_tarde = '1') or (Selector_manana = '0' and Selector_tarde = '0') then
+                Verde_carros_entrada <= '0';
+                Amarillo_carros_entrada <= '0';
+                Rojo_carros_entrada <= '0';
+                Verde_carros_salida <= '0';
+                Amarillo_carros_salida <= '0';
+                Rojo_carros_salida <= '0';
+					 Verde_peatones_salida <= '0';
+                Rojo_peatones_salida <= '0';
+					 
+            else
+                -- Modo mañana (Selector_manana activado, tarde desactivado)
+                if Selector_manana = '0' and Selector_tarde = '1' then  -- Inversión lógica si es activo en bajo
+                    -- Semáforo de entrada
+                    case Estado_Semaforo_Entrada_Carros is
+                        when EstadoVerde_carros_entrada =>
+                            if (Conteo_entrada < 2*120000000) then
+                                Conteo_entrada <= Conteo_entrada + 1;
+                                Verde_carros_entrada <= '1';
+                                Amarillo_carros_entrada <= '0';
+                                Rojo_carros_entrada <= '0';
+                            else
+                                Conteo_entrada <= 0;
+                                Verde_carros_entrada <= '0';
+                                Estado_Semaforo_Entrada_Carros <= EstadoAmarillo_carros_entrada;
+                            end if;
+
+                        when EstadoAmarillo_carros_entrada =>
+                            if (Conteo_entrada < 60000000) then
+                                Conteo_entrada <= Conteo_entrada + 1;
+                                Verde_carros_entrada <= '0';
+                                Amarillo_carros_entrada <= '1';
+                                Rojo_carros_entrada <= '0';
+                            else
+                                Conteo_entrada <= 0;
+                                Amarillo_carros_entrada <= '0';
+                                Estado_Semaforo_Entrada_Carros <= EstadoRojo_carros_entrada;
+                            end if;
+
+                        when EstadoRojo_carros_entrada =>
+                            if (Conteo_entrada < 2*120000000) then
+                                Conteo_entrada <= Conteo_entrada + 1;
+                                Verde_carros_entrada <= '0';
+                                Amarillo_carros_entrada <= '0';
+                                Rojo_carros_entrada <= '1';
+                            else
+                                Conteo_entrada <= 0;
+                                Rojo_carros_entrada <= '0';
+                                Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+                            end if;
+
+                        when others =>
+                            Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+                    end case;
+
+                    -- Semáforo de salida
+                    case Estado_Semaforo_Salida_Carros is
+                        when EstadoVerde_carros_salida =>
+                            if (Conteo_salida < 2*60000000) then
+                                Conteo_salida <= Conteo_salida + 1;
+                                Verde_carros_salida <= '1';
+                                Amarillo_carros_salida <= '0';
+                                Rojo_carros_salida <= '0';
+                            else
+                                Conteo_salida <= 0;
+                                Verde_carros_salida <= '0';
+                                Estado_Semaforo_Salida_Carros <= EstadoAmarillo_carros_salida;
+                            end if;
+
+                        when EstadoAmarillo_carros_salida =>
+                            if (Conteo_salida < 60000000) then
+                                Conteo_salida <= Conteo_salida + 1;
+                                Verde_carros_salida <= '0';
+                                Amarillo_carros_salida <= '1';
+                                Rojo_carros_salida <= '0';
+                            else
+                                Conteo_salida <= 0;
+                                Amarillo_carros_salida <= '0';
+                                Estado_Semaforo_Salida_Carros <= EstadoRojo_carros_salida;
+                            end if;
+
+                        when EstadoRojo_carros_salida =>
+                            if (Conteo_salida < 2*120000000) then
+                                Conteo_salida <= Conteo_salida + 1;
+                                Verde_carros_salida <= '0';
+                                Amarillo_carros_salida <= '0';
+                                Rojo_carros_salida <= '1';
+										  Salida_Carros_Rojo <= '1';
+										
+                            else
+                                Conteo_salida <= 0;
+                                Rojo_carros_salida <= '0';
+										  Salida_Carros_Rojo <= '0';
+                                Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+                            end if;
+									 
+								 when others =>
+                            Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+									
+                    end case;
+						  
+									 
+					---------------------- parte de los peatones -----------------------------------
+								case Estado_Semaforo_Peatones_Salida is
+								when EstadoRojo_peatones_salida =>
+                            --if (Salida_Carros_Rojo = '1') and (Conteo_peatones < 2*60000000) then  -- Si el semáforo de carros está en rojo
+									 if (Salida_Carros_Rojo = '1') then  -- Si el semáforo de carros está en rojo
+                                Conteo_peatones <= 0;  -- Reiniciar el contador
+                                Estado_Semaforo_Peatones_Salida <= EstadoVerde_peatones_salida;
+                            else
+                                -- Mantenerse en rojo
+                                Verde_peatones_salida <= '0';
+                                Rojo_peatones_salida <= '1';
+                            end if;
+
+                        when EstadoVerde_peatones_salida =>
+                            if (Conteo_peatones < 2*90000000) then  -- 15 segundos
+                                Conteo_peatones <= Conteo_peatones + 1;
+                                Verde_peatones_salida <= '1';
+                                Rojo_peatones_salida <= '0';
+                            else
+                                Conteo_peatones <= 0;
+                                Verde_peatones_salida <= '0';
+                                Estado_Semaforo_Peatones_Salida <= EstadoRojo_peatones_salida;
+                            end if;
+								when others =>
+                            Estado_Semaforo_Peatones_Salida <= EstadoRojo_peatones_salida;
+									 
+								end case;
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------                
+                -- Modo tarde (Selector_tarde activado, mañana desactivado)
+                elsif Selector_manana = '1' and Selector_tarde = '0' then
+                    case Estado_Semaforo_Entrada_Carros is
+                        when EstadoVerde_carros_entrada =>
+                            if (Conteo_entrada < 2*90000000) then
+                                Conteo_entrada <= Conteo_entrada + 1;
+                                Verde_carros_entrada <= '1';
+                                Amarillo_carros_entrada <= '0';
+                                Rojo_carros_entrada <= '0';
+                            else
+                                Conteo_entrada <= 0;
+                                Verde_carros_entrada <= '0';
+                                Estado_Semaforo_Entrada_Carros <= EstadoAmarillo_carros_entrada;
+                            end if;
+
+                        when EstadoAmarillo_carros_entrada =>
+                            if (Conteo_entrada < 60000000) then
+                                Conteo_entrada <= Conteo_entrada + 1;
+                                Verde_carros_entrada <= '0';
+                                Amarillo_carros_entrada <= '1';
+                                Rojo_carros_entrada <= '0';
+                            else
+                                Conteo_entrada <= 0;
+                                Amarillo_carros_entrada <= '0';
+                                Estado_Semaforo_Entrada_Carros <= EstadoRojo_carros_entrada;
+                            end if;
+
+                        when EstadoRojo_carros_entrada =>
+                            if (Conteo_entrada < 2*120000000) then
+                                Conteo_entrada <= Conteo_entrada + 1;
+                                Verde_carros_entrada <= '0';
+                                Amarillo_carros_entrada <= '0';
+                                Rojo_carros_entrada <= '1';
+                            else
+                                Conteo_entrada <= 0;
+                                Rojo_carros_entrada <= '0';
+                                Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+                            end if;
+
+                        when others =>
+                            Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+                    end case;
+
+                    -- Semáforo de salida
+                    case Estado_Semaforo_Salida_Carros is
+                        when EstadoVerde_carros_salida =>
+                            if (Conteo_salida < 2*120000000) then
+                                Conteo_salida <= Conteo_salida + 1;
+                                Verde_carros_salida <= '1';
+                                Amarillo_carros_salida <= '0';
+                                Rojo_carros_salida <= '0';
+                            else
+                                Conteo_salida <= 0;
+                                Verde_carros_salida <= '0';
+                                Estado_Semaforo_Salida_Carros <= EstadoAmarillo_carros_salida;
+                            end if;
+
+                        when EstadoAmarillo_carros_salida =>
+                            if (Conteo_salida < 60000000) then
+                                Conteo_salida <= Conteo_salida + 1;
+                                Verde_carros_salida <= '0';
+                                Amarillo_carros_salida <= '1';
+                                Rojo_carros_salida <= '0';
+                            else
+                                Conteo_salida <= 0;
+                                Amarillo_carros_salida <= '0';
+                                Estado_Semaforo_Salida_Carros <= EstadoRojo_carros_salida;
+                            end if;
+
+                        when EstadoRojo_carros_salida =>
+                            if (Conteo_salida < 2*120000000) then
+                                Conteo_salida <= Conteo_salida + 1;
+                                Verde_carros_salida <= '0';
+                                Amarillo_carros_salida <= '0';
+                                Rojo_carros_salida <= '1';
+                            else
+                                Conteo_salida <= 0;
+                                Rojo_carros_salida <= '0';
+                                Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+                            end if;
+
+                        when others =>
+                            Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+                    end case;
+                end if;
+            end if;
+        end if;
+    end process;
+
+end Behavioral;

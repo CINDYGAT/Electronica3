@@ -1,0 +1,104 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity contador_displays is
+    Port ( clk : in STD_LOGIC;
+           salida : out STD_LOGIC_VECTOR(7 downto 0);  -- Display 7 segmentos
+           seg : out STD_LOGIC_VECTOR(2 downto 0)      -- Control de multiplexado de los displays
+    );
+end contador_displays;
+
+architecture Behavioral of contador_displays is
+
+    signal contador: integer := 0;
+    signal segundos: integer := 0;
+    signal mul: integer := 0;          -- Para el multiplexado
+    signal bandera: integer := 0;      -- Indica qué display está activo (multiplexado)
+    signal numero_derecho: integer := 0;  -- Número que se muestra en el display derecho
+    signal numero_izquierdo: integer := 0; -- Número que se muestra en el display izquierdo
+
+begin
+
+    process(clk)
+    begin
+        if rising_edge(clk) then
+            -- Divisor de reloj para contar 1 segundo con un reloj de 50 MHz
+            if contador = 12000000 - 1 then
+                contador <= 0;
+                segundos <= segundos + 1;
+            else
+                contador <= contador + 1;
+            end if;
+
+            -- Multiplexado cada cierto número de ciclos para alternar displays
+            if mul = 2000 then
+                mul <= 0;
+                bandera <= bandera + 1;
+                if bandera = 2 then
+                    bandera <= 0;  -- Reiniciar el ciclo de multiplexado
+                end if;
+            else
+                mul <= mul + 1;
+            end if;
+
+            -- Control del conteo en función de los segundos
+            if segundos >= 1 and segundos < 11 then
+                numero_derecho <= 10 - segundos;  -- De 9 a 0 en el display derecho (110)
+            elsif segundos >= 11 and segundos < 21 then
+                numero_izquierdo <= 20 - segundos; -- De 9 a 0 en el display izquierdo (011)
+            else
+                -- Reiniciar el conteo cuando excede los 40 segundos
+                numero_derecho <= 0;
+                numero_izquierdo <= 0;
+                if segundos >= 21 then
+                    segundos <= 0;  -- Reiniciar los segundos
+                end if;
+            end if;
+
+            -- Control de encendido de los displays según el multiplexado
+            case bandera is
+                when 0 =>
+                    -- Control del display derecho (110)
+                    seg <= "110";  -- Activar display derecho
+                    case numero_derecho is
+                        when 0 => salida <= "11000000";  -- Muestra 0
+                        when 1 => salida <= "11111001";  -- Muestra 1
+                        when 2 => salida <= "10100100";  -- Muestra 2
+                        when 3 => salida <= "10110000";  -- Muestra 3
+                        when 4 => salida <= "10011001";  -- Muestra 4
+                        when 5 => salida <= "10010010";  -- Muestra 5
+                        when 6 => salida <= "10000010";  -- Muestra 6
+                        when 7 => salida <= "11111000";  -- Muestra 7
+                        when 8 => salida <= "10000000";  -- Muestra 8
+                        when 9 => salida <= "10011000";  -- Muestra 9
+                        when others => salida <= "11111111";  -- Apagar display
+                    end case;
+
+                when 1 =>
+                    -- Control del display izquierdo (011)
+                    seg <= "011";  -- Activar display izquierdo
+                    case numero_izquierdo is
+                        when 0 => salida <= "11000000";  -- Muestra 0
+                        when 1 => salida <= "11111001";  -- Muestra 1
+                        when 2 => salida <= "10100100";  -- Muestra 2
+                        when 3 => salida <= "10110000";  -- Muestra 3
+                        when 4 => salida <= "10011001";  -- Muestra 4
+                        when 5 => salida <= "10010010";  -- Muestra 5
+                        when 6 => salida <= "10000010";  -- Muestra 6
+                        when 7 => salida <= "11111000";  -- Muestra 7
+                        when 8 => salida <= "10000000";  -- Muestra 8
+                        when 9 => salida <= "10011000";  -- Muestra 9
+                        when others => salida <= "11111111";  -- Apagar display
+                    end case;
+
+                when others =>
+                    seg <= "111";  -- Apagar ambos displays
+            end case;
+
+        end if;
+    end process;
+
+end Behavioral;
+

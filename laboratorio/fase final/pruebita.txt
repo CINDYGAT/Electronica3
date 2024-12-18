@@ -1,0 +1,813 @@
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
+use IEEE.std_logic_unsigned.all;
+
+entity Semaforo is
+	Port(
+		Clk: in std_logic;
+		Selector_manana, Selector_tarde: in std_logic;
+		Verde_carros_entrada, Amarillo_carros_entrada, Rojo_carros_entrada: out std_logic;
+		Verde_carros_salida, Amarillo_carros_salida, Rojo_carros_salida: out std_logic;
+		Verde_peatones_entrada, Rojo_peatones_entrada: out std_logic;
+		Verde_peatones_salida, Rojo_peatones_salida: out std_logic;
+		seg: out STD_LOGIC_VECTOR (0 to 2);
+		salida: out STD_LOGIC_VECTOR (7 downto 0);
+		buzzer: out std_logic;
+		buzzer2: out std_logic
+	);
+end Semaforo;
+
+architecture Behavioral of Semaforo is
+	-- Definición de los estados del semáforo
+	type FSM is (EstadoVerde_carros_entrada, EstadoAmarillo_carros_entrada, EstadoRojo_carros_entrada);
+	type FSM_carros_salida is (EstadoVerde_carros_salida, EstadoAmarillo_carros_salida, EstadoRojo_carros_salida);
+	type FSM_peatones_entrada is (EstadoVerde_peatones_entrada, EstadoRojo_peatones_entrada, EstadoRojo2_peatones_entrada,EstadoRojo_peatones_entrada1);
+	type FSM_peatones_salida is (EstadoVerde_peatones_salida, EstadoRojo_peatones_salida, EstadoRojo2_peatones_salida,EstadoRojo_peatones_salida1);
+	
+	Signal Estado_Semaforo_Entrada_Carros: FSM := EstadoVerde_carros_entrada;  -- Estado inicial
+	Signal Estado_Semaforo_Salida_Carros: FSM_carros_salida := EstadoVerde_carros_salida;  -- Estado inicial
+	Signal Estado_Semaforo_Entrada_Peatones: FSM_peatones_entrada := EstadoRojo_peatones_entrada;  -- Estado inicial
+	Signal Estado_Semaforo_Salida_Peatones: FSM_peatones_salida := EstadoRojo_peatones_salida;  -- Estado inicial
+	
+	Signal Conteo_entrada: integer range 0 to 240000000 := 0;  
+	Signal Conteo_salida: integer range 0 to 240000000 := 0;  
+	Signal Conteo_peatones_entrada: integer range 0 to 240000000 := 0;  
+	Signal Conteo_peatones_salida: integer range 0 to 240000000 := 0;  
+
+	-- Registros internos para los colores del semáforo
+	Signal Verde_reg, Amarillo_reg, Rojo_reg: std_logic := '0';
+	Signal Verde_reg_salida, Amarillo_reg_salida, Rojo_reg_salida: std_logic := '0';
+	Signal Verde_reg_peatones_entrada, Rojo_reg_peatones_entrada: std_logic := '0';
+	Signal Verde_reg_peatones_salida, Rojo_reg_peatones_salida: std_logic := '0';
+
+	----- Display ------
+	signal contador: integer range 0 to 11999999 := 0;
+	Signal segundos_derecho: integer range 0 to 34 := 0;  
+	signal segundos_izquierdo: integer range 0 to 44 := 0;
+	Signal segundos_derecho_tarde: integer range 0 to 44 := 0;  --- para el contador tarde
+	signal segundos_izquierdo_tarde: integer range 0 to 39 := 0; --- para el contador tarde
+	signal mul: integer range 0 to 12000000 := 0;	         -- Para el multiplexado
+	signal bandera: integer range 0 to 2 := 0;     -- Indica qué display está activo (multiplexado)
+	signal numero_derecho: integer range 9 downto 0 := 9;  -- Número que se muestra en el display derecho
+	signal numero_izquierdo: integer range 9 downto 0 := 9; -- Número que se muestra en el display izquierdo
+
+----- Para el buzzer -------
+   signal buzzer_reg: std_logic := '0';
+	signal buzzer2_reg: std_logic := '0';
+
+begin
+------------------------ Proceso del semáforo para los carros en la entrada---------------------------------------------------------------
+	Process(Clk)
+	begin
+		if rising_edge(Clk) then
+			-- Reseteo de luces si ambos selectores están desactivados
+			if (Selector_manana = '0' and Selector_tarde = '0') then
+				Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+				Conteo_entrada <= 0;
+				Verde_reg <= '0';
+				Amarillo_reg <= '0';
+				Rojo_reg <= '0';
+
+			-- Si está activado el modo mañana
+			elsif (Selector_manana = '1' and Selector_tarde = '0') then
+				case Estado_Semaforo_Entrada_Carros is
+					when EstadoVerde_carros_entrada =>
+						if (Conteo_entrada < 2 * 120000000) then
+							Conteo_entrada <= Conteo_entrada + 1;
+							Verde_reg <= '1';
+						else
+							Conteo_entrada <= 0;
+							Verde_reg <= '0';
+							Estado_Semaforo_Entrada_Carros <= EstadoAmarillo_carros_entrada;
+						end if;
+
+					When EstadoAmarillo_carros_entrada =>					
+					If (Conteo_entrada < 5999999) then
+						Conteo_entrada <= Conteo_entrada + 1;
+						Amarillo_reg <= '1';
+					elsif(Conteo_entrada > 5999998 and Conteo_entrada < 12999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 12999998 and Conteo_entrada < 17999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 17999998 and Conteo_entrada < 23999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 23999998 and Conteo_entrada < 29999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 29999998 and Conteo_entrada < 35999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 35999998 and Conteo_entrada < 41999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 41999998 and Conteo_entrada < 47999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 47999998 and Conteo_entrada < 53999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 53999998 and Conteo_entrada < 59999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					else
+						Conteo_entrada <= 0;
+						Amarillo_reg <= '0';
+						Estado_Semaforo_Entrada_Carros <= EstadoRojo_carros_entrada;
+					End if;
+
+					when EstadoRojo_carros_entrada =>
+						if (Conteo_entrada < 2 * 120000000) then
+							Conteo_entrada <= Conteo_entrada + 1;
+							Rojo_reg <= '1';
+						else
+							Conteo_entrada <= 0;
+							Rojo_reg <= '0';
+							Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+						end if;
+					when others =>
+						Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+				end case;
+
+			-- Si está activado el modo tarde
+			elsif (Selector_manana = '0' and Selector_tarde = '1') then
+				case Estado_Semaforo_Entrada_Carros is
+					when EstadoVerde_carros_entrada =>
+						if (Conteo_entrada < 2 * 90000000) then
+							Conteo_entrada <= Conteo_entrada + 1;
+							Verde_reg <= '1';
+						else
+							Conteo_entrada <= 0;
+							Verde_reg <= '0';
+							Estado_Semaforo_Entrada_Carros <= EstadoAmarillo_carros_entrada;
+						end if;
+				
+						
+					When EstadoAmarillo_carros_entrada =>					
+					If (Conteo_entrada < 5999999) then
+						Conteo_entrada <= Conteo_entrada + 1;
+						Amarillo_reg <= '1';
+					elsif(Conteo_entrada > 5999998 and Conteo_entrada < 12999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 12999998 and Conteo_entrada < 17999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 17999998 and Conteo_entrada < 23999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 23999998 and Conteo_entrada < 29999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 29999998 and Conteo_entrada < 35999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 35999998 and Conteo_entrada < 41999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 41999998 and Conteo_entrada < 47999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 47999998 and Conteo_entrada < 53999999) then
+						Amarillo_reg <= '1';
+						Conteo_entrada <= Conteo_entrada +1;
+					elsif(Conteo_entrada > 53999998 and Conteo_entrada < 59999999) then
+						Amarillo_reg <= '0';
+						Conteo_entrada <= Conteo_entrada +1;
+					else
+						Conteo_entrada <= 0;
+						Amarillo_reg <= '0';
+						Estado_Semaforo_Entrada_Carros <= EstadoRojo_carros_entrada;
+					End if;
+					
+					
+					when EstadoRojo_carros_entrada =>
+						if (Conteo_entrada < 2 * 120000000) then
+							Conteo_entrada <= Conteo_entrada + 1;
+							Rojo_reg <= '1';
+						else
+							Conteo_entrada <= 0;
+							Rojo_reg <= '0';
+							Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+						end if;
+					when others =>
+						Estado_Semaforo_Entrada_Carros <= EstadoVerde_carros_entrada;
+				end case;
+			end if;
+		end if;
+	end process;
+
+	-- Asignación de los registros internos a las salidas
+	Verde_carros_entrada <= Verde_reg;
+	Amarillo_carros_entrada <= Amarillo_reg;
+	Rojo_carros_entrada <= Rojo_reg;
+
+
+------------------------ Proceso del semáforo para los carros en la salida---------------------------------------------------------------
+	Process(Clk)
+	begin
+		if rising_edge(Clk) then
+			-- Reseteo de luces si ambos selectores están desactivados
+			if (Selector_manana = '0' and Selector_tarde = '0') then
+				Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+				Conteo_salida <= 0;
+				Verde_reg_salida <= '0';
+				Amarillo_reg_salida <= '0';
+				Rojo_reg_salida <= '0';
+
+			-- Si está activado el modo mañana
+			elsif (Selector_manana = '1' and Selector_tarde = '0') then
+				case Estado_Semaforo_Salida_Carros is
+					when EstadoVerde_carros_salida =>
+						if (Conteo_salida < 2 * 60000000) then
+							Conteo_salida <= Conteo_salida + 1;
+							Verde_reg_salida <= '1';
+						else
+							Conteo_salida <= 0;
+							Verde_reg_salida <= '0';
+							Estado_Semaforo_Salida_Carros <= EstadoAmarillo_carros_salida;
+						end if;
+
+					When EstadoAmarillo_carros_salida =>					
+					If (Conteo_salida < 5999999) then
+						Conteo_salida <= Conteo_salida + 1;
+						Amarillo_reg_salida <= '1';
+					elsif(Conteo_salida > 5999998 and Conteo_salida < 12999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 12999998 and Conteo_salida < 17999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 17999998 and Conteo_salida < 23999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida> 23999998 and Conteo_salida < 29999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 29999998 and Conteo_salida < 35999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 35999998 and Conteo_salida < 41999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 41999998 and Conteo_salida < 47999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 47999998 and Conteo_salida < 53999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida> 53999998 and Conteo_salida < 59999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					else
+						Conteo_salida <= 0;
+						Amarillo_reg_salida <= '0';
+						Estado_Semaforo_Salida_Carros <= EstadoRojo_carros_salida;
+					End if;
+
+					when EstadoRojo_carros_salida =>
+						if (Conteo_salida < 2 * 120000000) then
+							Conteo_salida <= Conteo_salida + 1;
+							Rojo_reg_salida <= '1';
+						else
+							Conteo_salida <= 0;
+							Rojo_reg_salida <= '0';
+							Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+						end if;
+					when others =>
+						Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+				end case;
+
+			-- Si está activado el modo tarde
+			elsif (Selector_manana = '0' and Selector_tarde = '1') then
+				case Estado_Semaforo_Salida_Carros is
+					when EstadoVerde_carros_salida =>
+						if (Conteo_salida < 2 * 120000000) then
+							Conteo_salida <= Conteo_salida + 1;
+							Verde_reg_salida <= '1';
+						else
+							Conteo_salida <= 0;
+							Verde_reg_salida <= '0';
+							Estado_Semaforo_Salida_Carros <= EstadoAmarillo_carros_salida;
+						end if;
+				
+						
+					When EstadoAmarillo_carros_salida =>					
+					If (Conteo_salida < 5999999) then
+						Conteo_salida <= Conteo_salida + 1;
+						Amarillo_reg_salida <= '1';
+					elsif(Conteo_salida > 5999998 and Conteo_salida < 12999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 12999998 and Conteo_salida < 17999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_entrada +1;
+					elsif(Conteo_salida > 17999998 and Conteo_salida < 23999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 23999998 and Conteo_salida < 29999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 29999998 and Conteo_salida < 35999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 35999998 and Conteo_salida < 41999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 41999998 and Conteo_salida < 47999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 47999998 and Conteo_salida < 53999999) then
+						Amarillo_reg_salida <= '1';
+						Conteo_salida <= Conteo_salida +1;
+					elsif(Conteo_salida > 53999998 and Conteo_salida < 59999999) then
+						Amarillo_reg_salida <= '0';
+						Conteo_salida <= Conteo_salida +1;
+					else
+						Conteo_salida <= 0;
+						Amarillo_reg_salida <= '0';
+						Estado_Semaforo_Salida_Carros <= EstadoRojo_carros_salida;
+					End if;
+					
+					
+					when EstadoRojo_carros_salida =>
+						if (Conteo_salida < 2 * 120000000) then
+							Conteo_salida <= Conteo_salida + 1;
+							Rojo_reg_salida <= '1';
+						else
+							Conteo_salida <= 0;
+							Rojo_reg_salida <= '0';
+							Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+						end if;
+					when others =>
+						Estado_Semaforo_Salida_Carros <= EstadoVerde_carros_salida;
+				end case;
+			end if;
+		end if;
+	end process;
+
+	-- Asignación de los registros internos a las salidas
+	Verde_carros_salida <= Verde_reg_salida;
+	Amarillo_carros_salida <= Amarillo_reg_salida;
+	Rojo_carros_salida <= Rojo_reg_salida;
+
+------------------------ Proceso del semáforo para los peatones entrada ---------------------------------------------------------------
+	Process(Clk)
+	begin
+		if rising_edge(Clk) then
+			-- Reseteo de luces si ambos selectores están desactivados
+			if (Selector_manana = '0' and Selector_tarde = '0') then
+				Estado_Semaforo_Entrada_Peatones <= EstadoRojo_peatones_entrada;
+				Conteo_peatones_entrada <= 0;
+				Verde_reg_peatones_entrada <= '0';
+				Rojo_reg_peatones_entrada <= '0';
+
+			-- Si está activado el modo mañana
+			elsif (Selector_manana = '1' and Selector_tarde = '0') then
+				case Estado_Semaforo_Entrada_Peatones is
+				
+					when EstadoRojo_peatones_entrada =>
+						if (Conteo_peatones_entrada < 2 * 120000000) then
+							Conteo_peatones_entrada <= Conteo_peatones_entrada + 1;
+							Rojo_reg_peatones_entrada <= '1';
+						else
+							Conteo_peatones_entrada <= 0;
+							Rojo_reg_peatones_entrada <= '0';
+							Estado_Semaforo_Entrada_Peatones<= EstadoRojo_peatones_entrada1;
+						end if;
+						
+					when EstadoRojo_peatones_entrada1 =>
+						if (Conteo_peatones_entrada < 2 * 30000000) then
+							Conteo_peatones_entrada <= Conteo_peatones_entrada + 1;
+							Rojo_reg_peatones_entrada <= '1';
+						else
+							Conteo_peatones_entrada <= 0;
+							Rojo_reg_peatones_entrada <= '0';
+							Estado_Semaforo_Entrada_Peatones<= EstadoVerde_peatones_entrada;
+						end if;
+						
+					when EstadoVerde_peatones_entrada =>
+						if (Conteo_peatones_entrada < 2 * 90000000) then
+							Conteo_peatones_entrada <= Conteo_peatones_entrada + 1;
+							Verde_reg_peatones_entrada <= '1';
+						else
+							Conteo_peatones_entrada <= 0;
+							Verde_reg_peatones_entrada <= '0';
+							Estado_Semaforo_Entrada_Peatones <= EstadoRojo2_peatones_entrada;
+						end if;
+						
+					when EstadoRojo2_peatones_entrada =>
+						if (Conteo_peatones_entrada < 2 * 30000000) then
+							Conteo_peatones_entrada <= Conteo_peatones_entrada + 1;
+							Rojo_reg_peatones_entrada <= '1';
+						else
+							Conteo_peatones_entrada <= 0;
+							Rojo_reg_peatones_entrada <= '0';
+							Estado_Semaforo_Entrada_Peatones<= EstadoRojo_peatones_entrada;
+						end if;
+					when others =>
+						Estado_Semaforo_Entrada_Peatones <= EstadoRojo_peatones_entrada;
+				end case;
+
+			-- Si está activado el modo tarde
+			elsif (Selector_manana = '0' and Selector_tarde = '1') then
+					case Estado_Semaforo_Entrada_Peatones is
+				
+					when EstadoRojo_peatones_entrada =>
+						if (Conteo_peatones_entrada < 2 * 120000000) then
+							Conteo_peatones_entrada <= Conteo_peatones_entrada + 1;
+							Rojo_reg_peatones_entrada <= '1';
+						else
+							Conteo_peatones_entrada <= 0;
+							Rojo_reg_peatones_entrada <= '0';
+							Estado_Semaforo_Entrada_Peatones<= EstadoVerde_peatones_entrada;
+						end if;
+						
+						
+					when EstadoVerde_peatones_entrada =>
+						if (Conteo_peatones_entrada < 2 * 90000000) then
+							Conteo_peatones_entrada <= Conteo_peatones_entrada + 1;
+							Verde_reg_peatones_entrada <= '1';
+						else
+							Conteo_peatones_entrada <= 0;
+							Verde_reg_peatones_entrada <= '0';
+							Estado_Semaforo_Entrada_Peatones <= EstadoRojo2_peatones_entrada;
+						end if;
+						
+					when EstadoRojo2_peatones_entrada =>
+						if (Conteo_peatones_entrada < 2 * 30000000) then
+							Conteo_peatones_entrada <= Conteo_peatones_entrada + 1;
+							Rojo_reg_peatones_entrada <= '1';
+						else
+							Conteo_peatones_entrada <= 0;
+							Rojo_reg_peatones_entrada <= '0';
+							Estado_Semaforo_Entrada_Peatones<= EstadoRojo_peatones_entrada;
+						end if;
+					when others =>
+						Estado_Semaforo_Entrada_Peatones <= EstadoRojo_peatones_entrada;
+				end case;
+			end if;
+		end if;
+	end process;
+
+	-- Asignación de los registros internos a las salidas
+	Verde_peatones_entrada <= Verde_reg_peatones_entrada;
+	Rojo_peatones_entrada <= Rojo_reg_peatones_entrada;
+	
+------------------------ Proceso del semáforo para los peatones salida ---------------------------------------------------------------
+	Process(Clk)
+	begin
+		if rising_edge(Clk) then
+			-- Reseteo de luces si ambos selectores están desactivados
+			if (Selector_manana = '0' and Selector_tarde = '0') then
+				Estado_Semaforo_Salida_Peatones <= EstadoRojo_peatones_salida;
+				Conteo_peatones_salida <= 0;
+				Verde_reg_peatones_salida <= '0';
+				Rojo_reg_peatones_salida <= '0';
+
+			-- Si está activado el modo mañana
+			elsif (Selector_manana = '1' and Selector_tarde = '0') then
+				case Estado_Semaforo_Salida_Peatones is
+				
+					when EstadoRojo_peatones_salida =>
+						if (Conteo_peatones_salida < 2 * 90000000) then
+							Conteo_peatones_salida <= Conteo_peatones_salida + 1;
+							Rojo_reg_peatones_salida <= '1';
+						else
+							Conteo_peatones_salida <= 0;
+							Rojo_reg_peatones_salida <= '0';
+							Estado_Semaforo_Salida_Peatones<= EstadoVerde_peatones_salida;
+						end if;
+						
+						
+					when EstadoVerde_peatones_salida =>
+						if (Conteo_peatones_salida < 2 * 90000000) then
+							Conteo_peatones_salida <= Conteo_peatones_salida + 1;
+							Verde_reg_peatones_salida <= '1';
+						else
+							Conteo_peatones_salida <= 0;
+							Verde_reg_peatones_salida <= '0';
+							Estado_Semaforo_Salida_Peatones <= EstadoRojo2_peatones_salida;
+						end if;
+						
+					when EstadoRojo2_peatones_salida =>
+						if (Conteo_peatones_salida < 2 * 30000000) then
+							Conteo_peatones_salida <= Conteo_peatones_salida + 1;
+							Rojo_reg_peatones_salida <= '1';
+						else
+							Conteo_peatones_salida <= 0;
+							Rojo_reg_peatones_salida <= '0';
+							Estado_Semaforo_Salida_Peatones<= EstadoRojo_peatones_salida;
+						end if;
+					when others =>
+						Estado_Semaforo_Salida_Peatones <= EstadoRojo_peatones_salida;
+				end case;
+
+			-- Si está activado el modo tarde
+			elsif (Selector_manana = '0' and Selector_tarde = '1') then
+					case Estado_Semaforo_Salida_Peatones is
+				
+					when EstadoRojo_peatones_salida =>
+						if (Conteo_peatones_salida < 2 * 120000000) then
+							Conteo_peatones_salida <= Conteo_peatones_salida + 1;
+							Rojo_reg_peatones_salida <= '1';
+						else
+							Conteo_peatones_salida <= 0;
+							Rojo_reg_peatones_salida <= '0';
+							Estado_Semaforo_Salida_Peatones<= EstadoRojo_peatones_salida1;
+						end if;
+						
+					when EstadoRojo_peatones_salida1 =>
+						if (Conteo_peatones_salida < 2 * 30000000) then
+							Conteo_peatones_salida <= Conteo_peatones_salida + 1;
+							Rojo_reg_peatones_salida <= '1';
+						else
+							Conteo_peatones_salida <= 0;
+							Rojo_reg_peatones_salida <= '0';
+							Estado_Semaforo_Salida_Peatones<= EstadoVerde_peatones_salida;
+						end if;
+						
+					when EstadoVerde_peatones_salida =>
+						if (Conteo_peatones_salida < 2 * 90000000) then
+							Conteo_peatones_salida <= Conteo_peatones_salida + 1;
+							Verde_reg_peatones_salida <= '1';
+						else
+							Conteo_peatones_salida <= 0;
+							Verde_reg_peatones_salida <= '0';
+							Estado_Semaforo_Salida_Peatones <= EstadoRojo2_peatones_salida;
+						end if;
+						
+					when EstadoRojo2_peatones_salida =>
+						if (Conteo_peatones_salida < 2 * 30000000) then
+							Conteo_peatones_salida <= Conteo_peatones_salida + 1;
+							Rojo_reg_peatones_salida <= '1';
+						else
+							Conteo_peatones_salida <= 0;
+							Rojo_reg_peatones_salida <= '0';
+							Estado_Semaforo_Salida_Peatones<= EstadoRojo_peatones_salida;
+						end if;
+					when others =>
+						Estado_Semaforo_Salida_Peatones <= EstadoRojo_peatones_salida;
+				end case;
+			end if;
+		end if;
+	end process;
+
+	-- Asignación de los registros internos a las salidas
+	Verde_peatones_salida <= Verde_reg_peatones_salida;
+	Rojo_peatones_salida <= Rojo_reg_peatones_salida;
+	
+-------------------------------------------------- Display ----------------------------------------------------------------------------------------
+process(clk)
+    begin
+        if rising_edge(clk) then
+		  -- Reseteo de luces si ambos selectores están desactivados
+			if (Selector_manana = '0' and Selector_tarde = '0') then
+				contador <= 0;
+            segundos_derecho <= 0;
+            segundos_izquierdo <= 0;
+				segundos_derecho_tarde <= 0;
+            segundos_izquierdo_tarde <= 0;
+            bandera <= 0;
+            mul <= 0;
+            salida <= "11111111";  -- Apaga ambos displays
+				buzzer_reg <= '0';
+				buzzer2_reg <= '0';
+
+				-- Si está activado el modo mañana
+			elsif (Selector_manana = '1' and Selector_tarde = '0') then
+            -- Divisor de reloj para contar 1 segundo para el display derecho
+            if contador = 12000000 - 1 then
+                contador <= 0;
+                segundos_derecho <= segundos_derecho + 1;
+					 
+					 if segundos_derecho < 34 then
+                    segundos_derecho <= segundos_derecho + 1;
+                else
+                    segundos_derecho <= 0;  -- Reiniciar el contador de segundos
+                end if;
+					 
+            else
+                contador <= contador + 1;
+            end if;
+
+            -- Divisor de reloj para contar 1 segundo para el display izquierdo
+            if contador = 12000000 - 1 then  
+                contador <= 0;
+                segundos_izquierdo <= segundos_izquierdo + 1;
+					 
+					 if segundos_izquierdo < 44 then
+                    segundos_izquierdo <= segundos_izquierdo + 1;
+                else
+                    segundos_izquierdo <= 0;  -- Reiniciar el contador de segundos
+                end if;
+					 
+            else
+                contador <= contador + 1;
+            end if;
+
+            -- Multiplexado cada cierto número de ciclos para alternar displays
+            if mul = 2000 then
+                mul <= 0;
+                bandera <= bandera + 1;
+                if bandera > 2 then
+                    bandera <= 0;  -- Reiniciar el ciclo de multiplexado
+                end if;
+            else
+                mul <= mul + 1;
+            end if;
+
+            -- Control del conteo en función de los segundos para el display derecho
+            if segundos_derecho >= 21 and segundos_derecho <=29 then
+                numero_derecho <= 30 - segundos_derecho;  -- De 9 a 0 en el display derecho (110)
+            else
+                numero_derecho <= 0;  -- Reiniciar el display derecho cuando no esté en uso
+            end if;
+
+              -- Control del buzzer salida
+            if (segundos_derecho = 23 or segundos_derecho = 25 or segundos_derecho = 27 or segundos_derecho = 29) then
+                buzzer_reg <= '1'; -- Activa el buzzer en estos segundos
+            else
+                buzzer_reg <= '0'; -- Apaga el buzzer en otros tiempos
+            end if;
+				
+            -- Control del conteo en función de los segundos para el display izquierdo
+            if segundos_izquierdo >= 31 and segundos_izquierdo <= 39 then
+                numero_izquierdo <= 40 - segundos_izquierdo; -- De 9 a 0 en el display izquierdo (011)				
+            else
+                numero_izquierdo <= 0;  -- Reiniciar el display izquierdo cuando no esté en uso
+            end if;
+				
+				if (segundos_izquierdo = 33 or segundos_izquierdo = 35 or segundos_izquierdo = 37 or segundos_izquierdo = 39) then
+                buzzer2_reg <= '1'; -- Activa el buzzer en estos segundos
+            else
+                buzzer2_reg <= '0'; -- Apaga el buzzer en otros tiempos
+            end if;
+				
+				---- Control buzzer entrada
+				
+				
+
+            -- Control de encendido de los displays según el multiplexado
+            case bandera is
+                when 0 =>
+                    -- Control del display derecho (110)
+                    seg <= "110";  -- Activar display derecho
+                    case numero_derecho is
+                        when 0 => salida <= "11000000";  -- Muestra 0
+                        when 1 => salida <= "11111001";  -- Muestra 1
+                        when 2 => salida <= "10100100";  -- Muestra 2
+                        when 3 => salida <= "10110000";  -- Muestra 3
+                        when 4 => salida <= "10011001";  -- Muestra 4
+                        when 5 => salida <= "10010010";  -- Muestra 5
+                        when 6 => salida <= "10000010";  -- Muestra 6
+                        when 7 => salida <= "11111000";  -- Muestra 7
+                        when 8 => salida <= "10000000";  -- Muestra 8
+                        when 9 => salida <= "10011000";  -- Muestra 9
+                        when others => salida <= "11111111";  -- Apagar display
+                    end case;
+
+                when 1 =>
+                    -- Control del display izquierdo (011)
+                    seg <= "011";  -- Activar display izquierdo
+                    case numero_izquierdo is
+                        when 0 => salida <= "11000000";  -- Muestra 0
+                        when 1 => salida <= "11111001";  -- Muestra 1
+                        when 2 => salida <= "10100100";  -- Muestra 2
+                        when 3 => salida <= "10110000";  -- Muestra 3
+                        when 4 => salida <= "10011001";  -- Muestra 4
+                        when 5 => salida <= "10010010";  -- Muestra 5
+                        when 6 => salida <= "10000010";  -- Muestra 6
+                        when 7 => salida <= "11111000";  -- Muestra 7
+                        when 8 => salida <= "10000000";  -- Muestra 8
+                        when 9 => salida <= "10011000";  -- Muestra 9
+                        when others => salida <= "11111111";  -- Apagar display
+                    end case;
+
+                when others =>
+                    seg <= "111";  -- Apagar ambos displays
+            end case;
+				
+				----------- Modo Tarde -------
+				elsif (Selector_manana = '0' and Selector_tarde = '1') then
+            -- Divisor de reloj para contar 1 segundo para el display derecho
+            if contador = 12000000 - 1 then
+                contador <= 0;
+                segundos_derecho_tarde <= segundos_derecho_tarde + 1;
+					 
+					 if segundos_derecho_tarde < 44 then
+                    segundos_derecho_tarde <= segundos_derecho_tarde + 1;
+                else
+                    segundos_derecho_tarde <= 0;  -- Reiniciar el contador de segundos
+                end if;
+					 
+            else
+                contador <= contador + 1;
+            end if;
+
+            -- Divisor de reloj para contar 1 segundo para el display izquierdo
+            if contador = 12000000 - 1 then  
+                contador <= 0;
+                segundos_izquierdo_tarde <= segundos_izquierdo_tarde + 1;
+					 
+					 if segundos_izquierdo_tarde < 39 then
+                    segundos_izquierdo_tarde <= segundos_izquierdo_tarde + 1;
+                else
+                    segundos_izquierdo_tarde <= 0;  -- Reiniciar el contador de segundos
+                end if;
+					 
+            else
+                contador <= contador + 1;
+            end if;
+
+            -- Multiplexado cada cierto número de ciclos para alternar displays
+            if mul = 2000 then
+                mul <= 0;
+                bandera <= bandera + 1;
+                if bandera > 2 then
+                    bandera <= 0;  -- Reiniciar el ciclo de multiplexado
+                end if;
+            else
+                mul <= mul + 1;
+            end if;
+
+            -- Control del conteo en función de los segundos para el display derecho
+            if segundos_derecho_tarde >= 31 and segundos_derecho_tarde <=39 then
+                numero_derecho <= 40 - segundos_derecho_tarde;  -- De 9 a 0 en el display derecho (110)
+            else
+                numero_derecho <= 0;  -- Reiniciar el display derecho cuando no esté en uso
+            end if;
+
+             -- Control del buzzer
+            if (segundos_derecho_tarde = 33 or segundos_derecho_tarde = 35 or segundos_derecho_tarde = 37 or segundos_derecho_tarde = 39) then
+                buzzer_reg <= '1'; -- Activa el buzzer en estos segundos
+            else
+                buzzer_reg <= '0'; -- Apaga el buzzer en otros tiempos
+            end if;
+				
+            -- Control del conteo en función de los segundos para el display izquierdo
+            if segundos_izquierdo_tarde >= 26 and segundos_izquierdo_tarde <= 34 then
+                numero_izquierdo <= 35 - segundos_izquierdo_tarde; -- De 9 a 0 en el display izquierdo (011)
+            else
+                numero_izquierdo <= 0;  -- Reiniciar el display izquierdo cuando no esté en uso
+            end if;
+				
+				--- control buzzer tarde
+				if (segundos_izquierdo_tarde = 28 or segundos_izquierdo_tarde = 30 or segundos_izquierdo_tarde = 32 or segundos_izquierdo_tarde = 34) then
+                buzzer2_reg <= '1'; -- Activa el buzzer en estos segundos
+            else
+                buzzer2_reg <= '0'; -- Apaga el buzzer en otros tiempos
+            end if;
+
+            -- Control de encendido de los displays según el multiplexado
+            case bandera is
+                when 0 =>
+                    -- Control del display derecho (110)
+                    seg <= "110";  -- Activar display derecho
+                    case numero_derecho is
+                        when 0 => salida <= "11000000";  -- Muestra 0
+                        when 1 => salida <= "11111001";  -- Muestra 1
+                        when 2 => salida <= "10100100";  -- Muestra 2
+                        when 3 => salida <= "10110000";  -- Muestra 3
+                        when 4 => salida <= "10011001";  -- Muestra 4
+                        when 5 => salida <= "10010010";  -- Muestra 5
+                        when 6 => salida <= "10000010";  -- Muestra 6
+                        when 7 => salida <= "11111000";  -- Muestra 7
+                        when 8 => salida <= "10000000";  -- Muestra 8
+                        when 9 => salida <= "10011000";  -- Muestra 9
+                        when others => salida <= "11111111";  -- Apagar display
+                    end case;
+
+                when 1 =>
+                    -- Control del display izquierdo (011)
+                    seg <= "011";  -- Activar display izquierdo
+                    case numero_izquierdo is
+                        when 0 => salida <= "11000000";  -- Muestra 0
+                        when 1 => salida <= "11111001";  -- Muestra 1
+                        when 2 => salida <= "10100100";  -- Muestra 2
+                        when 3 => salida <= "10110000";  -- Muestra 3
+                        when 4 => salida <= "10011001";  -- Muestra 4
+                        when 5 => salida <= "10010010";  -- Muestra 5
+                        when 6 => salida <= "10000010";  -- Muestra 6
+                        when 7 => salida <= "11111000";  -- Muestra 7
+                        when 8 => salida <= "10000000";  -- Muestra 8
+                        when 9 => salida <= "10011000";  -- Muestra 9
+                        when others => salida <= "11111111";  -- Apagar display
+                    end case;
+
+                when others =>
+                    seg <= "111";  -- Apagar ambos displays
+            end case;
+
+        end if;
+		  end if;
+		
+    end process;
+    buzzer <= buzzer_reg;	
+	 buzzer2 <= buzzer2_reg;
+------------------------------------------- ALARMA entrada ---------------------------------------------------------
+	 
+end Behavioral;
